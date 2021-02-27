@@ -1,0 +1,22 @@
+{
+  "name": "threejs-example",
+  "version": "1.0.0",
+  "main": "index.js",
+  "author": "baian1 <chizhongnan1@gmail.com>",
+  "license": "MIT",
+  "scripts": {
+    "start": "parcel serve ./src/*"
+  },
+  "devDependencies": {
+    "@types/three": "^0.125.3",
+    "@typescript-eslint/eslint-plugin": "^4.15.2",
+    "@typescript-eslint/parser": "^4.15.2",
+    "eslint": "^7.20.0",
+    "eslint-config-prettier": "^8.1.0",
+    "parcel": "1.x",
+    "typescript": "^4.2.2"
+  },
+  "dependencies": {
+    "three": "^0.126.0"
+  }
+}
