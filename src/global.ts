@@ -175,6 +175,34 @@ function main() {
         originHelper.updateWorldMatrix(true, false);
         geometry.applyMatrix4(originHelper.matrixWorld);
 
+        //添加颜色
+        // compute a color
+        const color = new THREE.Color();
+        const hue = THREE.MathUtils.lerp(0.7, 0.3, amount);
+        const saturation = 1;
+        const lightness = THREE.MathUtils.lerp(0.4, 1.0, amount);
+        color.setHSL(hue, saturation, lightness);
+        // get the colors as an array of values from 0 to 255
+        const rgb = color.toArray().map((v) => v * 255);
+
+        // make an array to store colors for each vertex
+        const numVerts = geometry.getAttribute("position").count;
+        const itemSize = 3; // r, g, b
+        const colors = new Uint8Array(itemSize * numVerts);
+
+        // copy the color into the colors array for each vertex
+        colors.forEach((v, ndx) => {
+          colors[ndx] = rgb[ndx % 3];
+        });
+
+        const normalized = true;
+        const colorAttrib = new THREE.BufferAttribute(
+          colors,
+          itemSize,
+          normalized
+        );
+        geometry.setAttribute("color", colorAttrib);
+
         geometries.push(geometry);
       });
     });
@@ -196,6 +224,10 @@ function main() {
       "uv",
       new THREE.BufferAttribute(new Float32Array(length * 48), 2)
     );
+    mergedGeometry.setAttribute(
+      "color",
+      new THREE.BufferAttribute(new Uint8Array(length * 72), 3)
+    );
     const indices = [];
     geometries.forEach((v, index) => {
       const vIndices = v.getIndex();
@@ -209,7 +241,9 @@ function main() {
       new THREE.BufferAttribute(new Uint32Array(indices, 0, indices.length), 1)
     );
     console.log(mergedGeometry);
-    const material = new THREE.MeshBasicMaterial({ color: "red" });
+    const material = new THREE.MeshBasicMaterial({
+      vertexColors: true,
+    });
     const mesh = new THREE.Mesh(mergedGeometry, material);
     scene.add(mesh);
   }
