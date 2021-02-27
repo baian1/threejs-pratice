@@ -1,5 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
+import { BufferGeometryUtils } from "three/examples/jsm/utils/BufferGeometryUtils";
+
 function main() {
   const canvas = document.querySelector("#c") as HTMLCanvasElement;
   const renderer = new THREE.WebGLRenderer({ canvas });
@@ -73,7 +75,11 @@ function main() {
 
   function parseData(text: string) {
     const data: (number | undefined)[][] = [];
-    const settings = { data };
+    const settings: {
+      xllcorner: number;
+      yllcorner: number;
+      data: (number | undefined)[][];
+    } = { data, xllcorner: 0, yllcorner: 0 };
     let max: number;
     let min: number;
     // split into lines
@@ -105,17 +111,13 @@ function main() {
     data: (number | undefined)[][];
     min: number;
     max: number;
+    xllcorner: number;
+    yllcorner: number;
   }) {
-    const { min, max, data } = file;
+    const { data } = file;
+    const { min, max } = file;
     const range = max - min;
-
-    // make one box geometry
-    const boxWidth = 1;
-    const boxHeight = 1;
-    const boxDepth = 1;
-    const geometry = new THREE.BoxBufferGeometry(boxWidth, boxHeight, boxDepth);
-    // make it so it scales away from the positive Z axis
-    geometry.applyMatrix4(new THREE.Matrix4().makeTranslation(0, 0, 0.5));
+    const geometries: THREE.BoxGeometry[] = [];
 
     // these helpers will make it easy to position the boxes
     // We can rotate the lon helper on its Y axis to the longitude
@@ -129,21 +131,32 @@ function main() {
     positionHelper.position.z = 1;
     latHelper.add(positionHelper);
 
+    // Used to move the center of the box so it scales from the position Z axis
+    const originHelper = new THREE.Object3D();
+    originHelper.position.z = 0.5;
+    positionHelper.add(originHelper);
+
     const lonFudge = Math.PI * 0.5;
     const latFudge = Math.PI * -0.135;
     data.forEach((row, latNdx) => {
       row.forEach((value, lonNdx) => {
+        // if (latNdx > 50 || lonNdx > 50) {
+        //   return;
+        // }
         if (value === undefined) {
           return;
         }
-        const amount = (value - min) / range;
-        const material = new THREE.MeshBasicMaterial();
-        const hue = THREE.MathUtils.lerp(0.7, 0.3, amount);
-        const saturation = 1;
-        const lightness = THREE.MathUtils.lerp(0.4, 1.0, amount);
-        material.color.setHSL(hue, saturation, lightness);
-        const mesh = new THREE.Mesh(geometry, material);
-        scene.add(mesh);
+        // make one box geometry
+        const boxWidth = 1;
+        const boxHeight = 1;
+        const boxDepth = 1;
+
+        const geometry = new THREE.BoxBufferGeometry(
+          boxWidth,
+          boxHeight,
+          boxDepth
+        );
+        // make it so it scales away from the positive Z axis
 
         // adjust the helpers to point to the latitude and longitude
         lonHelper.rotation.y =
@@ -153,12 +166,52 @@ function main() {
 
         // use the world matrix of the position helper to
         // position this mesh.
-        positionHelper.updateWorldMatrix(true, false);
-        mesh.applyMatrix4(positionHelper.matrixWorld);
+        const amount = (value - min) / range;
+        positionHelper.scale.set(
+          0.005,
+          0.005,
+          THREE.MathUtils.lerp(0.01, 0.5, amount)
+        );
+        originHelper.updateWorldMatrix(true, false);
+        geometry.applyMatrix4(originHelper.matrixWorld);
 
-        mesh.scale.set(0.005, 0.005, THREE.MathUtils.lerp(0.01, 0.5, amount));
+        geometries.push(geometry);
       });
     });
+
+    // const mergedGeometry = BufferGeometryUtils.mergeBufferGeometries(
+    //   geometries
+    // );
+    const mergedGeometry = new THREE.BufferGeometry();
+    const length = geometries.length;
+    mergedGeometry.setAttribute(
+      "position",
+      new THREE.BufferAttribute(new Float32Array(length * 72), 3)
+    );
+    mergedGeometry.setAttribute(
+      "normal",
+      new THREE.BufferAttribute(new Float32Array(length * 72), 3)
+    );
+    mergedGeometry.setAttribute(
+      "uv",
+      new THREE.BufferAttribute(new Float32Array(length * 48), 2)
+    );
+    const indices = [];
+    geometries.forEach((v, index) => {
+      const vIndices = v.getIndex();
+      if (vIndices) {
+        indices.push(...vIndices.toJSON().array.map((v) => v + 24 * index));
+      }
+      mergedGeometry.merge(v, index * 24);
+    });
+    mergedGeometry.setIndex(
+      // indices
+      new THREE.BufferAttribute(new Uint32Array(indices, 0, indices.length), 1)
+    );
+    console.log(mergedGeometry);
+    const material = new THREE.MeshBasicMaterial({ color: "red" });
+    const mesh = new THREE.Mesh(mergedGeometry, material);
+    scene.add(mesh);
   }
 
   loadFile(
