@@ -18,5 +18,8 @@
   },
   "dependencies": {
     "three": "^0.126.0"
-  }
+  },
+  "browserslist": [
+    "last 1 Chrome versions"
+  ]
 }
