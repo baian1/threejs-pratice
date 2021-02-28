@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 import Stats from "three/examples/jsm/libs/stats.module";
 import { GUI } from "three/examples/jsm/libs/dat.gui.module";
+import { BufferGeometry } from "three";
 
 const stats = new Stats();
 document.body.appendChild(stats.dom);
@@ -142,82 +143,97 @@ async function main() {
         "https://threejsfundamentals.org/threejs/resources/data/gpw/gpw_v4_basic_demographic_characteristics_rev10_a000_014ft_2010_cntm_1_deg.asc",
     },
   ];
-  const data = await loadData(fileInfos.map((v) => v.url)).then((files) => {
-    const newFileInfos: {
-      name: string;
-      hueRange: number[];
-      file: typeof files[number];
-    }[] = [];
-    files.forEach((file, index) => {
-      newFileInfos.push({
-        file,
-        name: fileInfos[index].name,
-        hueRange: fileInfos[index].hueRange,
-      });
-    });
-
-    function mapValues(
-      data: (undefined | number)[][],
-      fn: (
-        base: number | undefined,
-        rowNdx: number,
-        colNdx: number
-      ) => number | undefined
-    ) {
-      return data.map((row, rowNdx) => {
-        return row.map((value, colNdx) => {
-          return fn(value, rowNdx, colNdx);
+  const newFileinfos = await loadData(fileInfos.map((v) => v.url)).then(
+    (files) => {
+      const newFileInfos: {
+        name: string;
+        hueRange: number[];
+        file: typeof files[number];
+      }[] = [];
+      files.forEach((file, index) => {
+        newFileInfos.push({
+          file,
+          name: fileInfos[index].name,
+          hueRange: fileInfos[index].hueRange,
         });
       });
-    }
-    function makeDiffFile(
-      baseFile: typeof files[number],
-      otherFile: typeof files[number],
-      compareFn: (a: number, b: number) => number
-    ) {
-      let min: number;
-      let max: number;
-      const baseData = baseFile.data;
-      const otherData = otherFile.data;
-      const data = mapValues(baseData, (base, rowNdx, colNdx) => {
-        const other = otherData[rowNdx][colNdx];
-        if (base === undefined || other === undefined) {
-          return undefined;
-        }
-        const value = compareFn(base, other);
-        min = Math.min(min === undefined ? value : min, value);
-        max = Math.max(max === undefined ? value : max, value);
-        return value;
+
+      function mapValues(
+        data: (undefined | number)[][],
+        fn: (
+          base: number | undefined,
+          rowNdx: number,
+          colNdx: number
+        ) => number | undefined
+      ) {
+        return data.map((row, rowNdx) => {
+          return row.map((value, colNdx) => {
+            return fn(value, rowNdx, colNdx);
+          });
+        });
+      }
+      function makeDiffFile(
+        baseFile: typeof files[number],
+        otherFile: typeof files[number],
+        compareFn: (a: number, b: number) => number
+      ) {
+        let min: number;
+        let max: number;
+        const baseData = baseFile.data;
+        const otherData = otherFile.data;
+        const data = mapValues(baseData, (base, rowNdx, colNdx) => {
+          const other = otherData[rowNdx][colNdx];
+          if (base === undefined || other === undefined) {
+            return undefined;
+          }
+          const value = compareFn(base, other);
+          min = Math.min(min === undefined ? value : min, value);
+          max = Math.max(max === undefined ? value : max, value);
+          return value;
+        });
+        // make a copy of baseFile and replace min, max, and data
+        // with the new data
+        return { ...baseFile, min, max, data };
+      }
+      function amountGreaterThan(a: number, b: number) {
+        return Math.max(a - b, 0);
+      }
+
+      newFileInfos.push({
+        name: ">50%men",
+        hueRange: [0.6, 1.1],
+        file: makeDiffFile(files[0], files[1], (men, women) => {
+          return amountGreaterThan(men, women);
+        }),
       });
-      // make a copy of baseFile and replace min, max, and data
-      // with the new data
-      return { ...baseFile, min, max, data };
+      newFileInfos.push({
+        name: ">50% women",
+        hueRange: [0.0, 0.4],
+        file: makeDiffFile(files[1], files[0], (women, men) => {
+          return amountGreaterThan(women, men);
+        }),
+      });
+
+      return newFileInfos;
     }
-    function amountGreaterThan(a: number, b: number) {
-      return Math.max(a - b, 0);
-    }
+  );
 
-    newFileInfos.push({
-      name: ">50%men",
-      hueRange: [0.6, 1.1],
-      file: makeDiffFile(files[0], files[1], (men, women) => {
-        return amountGreaterThan(men, women);
-      }),
-    });
-    newFileInfos.push({
-      name: ">50% women",
-      hueRange: [0.0, 0.4],
-      file: makeDiffFile(files[1], files[0], (women, men) => {
-        return amountGreaterThan(women, men);
-      }),
-    });
-
-    return newFileInfos;
-  });
-
-  const meshs = data.map((v) => {
+  const geometries = newFileinfos.map((v) => {
     return makeBoxes(v.file, v.name, v.hueRange);
   });
+
+  function dataMissingInAnySet(
+    fileInfos: typeof newFileinfos,
+    latNdx: number,
+    lonNdx: number
+  ) {
+    for (const fileInfo of fileInfos) {
+      if (fileInfo.file.data[latNdx][lonNdx] === undefined) {
+        return true;
+      }
+    }
+    return false;
+  }
 
   function makeBoxes(
     file: {
@@ -256,9 +272,10 @@ async function main() {
     const latFudge = Math.PI * -0.135;
     data.forEach((row, latNdx) => {
       row.forEach((value, lonNdx) => {
-        // if (latNdx > 50 || lonNdx > 50) {
-        //   return;
-        // }
+        //排除不一致的数据
+        if (dataMissingInAnySet(newFileinfos, latNdx, lonNdx)) {
+          return;
+        }
         if (value === undefined) {
           return;
         }
@@ -356,31 +373,73 @@ async function main() {
       // indices
       new THREE.BufferAttribute(new Uint32Array(indices, 0, indices.length), 1)
     );
-    const material = new THREE.MeshBasicMaterial({
-      vertexColors: true,
-    });
-    const mesh = new THREE.Mesh(mergedGeometry, material);
 
-    return mesh;
+    return mergedGeometry;
   }
-
-  scene.add(meshs[0]);
+  //baseGeometry
+  const baseGeometry = geometries[0];
+  baseGeometry.morphAttributes.position = [];
+  geometries.forEach((geometry, index) => {
+    const attribute = geometry.getAttribute("position");
+    attribute.name = `target${index}`;
+    baseGeometry.morphAttributes.position[index] = attribute;
+  });
+  const mesh = new THREE.Mesh(
+    baseGeometry,
+    new THREE.MeshBasicMaterial({
+      color: 0xff0000,
+      // flatShading: true,
+      morphTargets: true,
+    })
+  );
+  scene.add(mesh);
+  mesh.morphTargetInfluences![0] = 0.5;
   render();
   //----------------------
   const gui = new GUI();
   const folderLocal = gui.addFolder("Local Clipping");
-  const propsLocal = {
-    show: "man",
+  const params = {
+    man: 1,
+    woman: 0,
+    "man>50%": 0,
+    "woman>50%": 0,
   };
-  const selector = ["man", "woman", ">man50%", ">woman50%"];
-  folderLocal.add(propsLocal, "show", selector).onChange((v: string) => {
-    meshs.forEach((mesh) => {
-      scene.remove(mesh);
+  folderLocal
+    .add(params, "man", 0, 1)
+    .step(0.01)
+    .onChange(function (value: number) {
+      if (mesh.morphTargetInfluences) {
+        mesh.morphTargetInfluences[0] = value;
+      }
+      render();
     });
-    scene.add(meshs[selector.indexOf(v)]);
-
-    render();
-  });
+  folderLocal
+    .add(params, "woman", 0, 1)
+    .step(0.01)
+    .onChange(function (value: number) {
+      if (mesh.morphTargetInfluences) {
+        mesh.morphTargetInfluences[1] = value;
+      }
+      render();
+    });
+  folderLocal
+    .add(params, "man>50%", 0, 1)
+    .step(0.01)
+    .onChange(function (value: number) {
+      if (mesh.morphTargetInfluences) {
+        mesh.morphTargetInfluences[2] = value;
+      }
+      render();
+    });
+  folderLocal
+    .add(params, "woman>50%", 0, 1)
+    .step(0.01)
+    .onChange(function (value: number) {
+      if (mesh.morphTargetInfluences) {
+        mesh.morphTargetInfluences[3] = value;
+      }
+      render();
+    });
 }
 
 main();
