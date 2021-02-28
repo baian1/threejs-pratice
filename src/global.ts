@@ -270,6 +270,8 @@ async function main() {
 
     const lonFudge = Math.PI * 0.5;
     const latFudge = Math.PI * -0.135;
+    console.log(hueRange);
+
     data.forEach((row, latNdx) => {
       row.forEach((value, lonNdx) => {
         //排除不一致的数据
@@ -380,18 +382,72 @@ async function main() {
   const baseGeometry = geometries[0];
   baseGeometry.morphAttributes.position = [];
   geometries.forEach((geometry, index) => {
-    const attribute = geometry.getAttribute("position");
-    attribute.name = `target${index}`;
-    baseGeometry.morphAttributes.position[index] = attribute;
+    const pAttribute = geometry.getAttribute("position");
+    pAttribute.name = `target${index}`;
+    baseGeometry.morphAttributes.position[index] = pAttribute;
+    baseGeometry.setAttribute(
+      `morphColor${index}`,
+      geometry.getAttribute("color")
+    );
   });
-  const mesh = new THREE.Mesh(
-    baseGeometry,
-    new THREE.MeshBasicMaterial({
-      color: 0xff0000,
+  console.log(baseGeometry);
+  let material;
+  {
+    material = new THREE.MeshBasicMaterial({
+      vertexColors: true,
       // flatShading: true,
       morphTargets: true,
-    })
-  );
+    });
+    const vertexShaderReplacements = [
+      {
+        from: "#include <morphtarget_pars_vertex>",
+        to: `
+          uniform float morphTargetInfluences[8];
+        `,
+      },
+      {
+        from: "#include <morphnormal_vertex>",
+        to: `
+        `,
+      },
+      {
+        from: "#include <morphtarget_vertex>",
+        to: `
+          transformed += (morphTarget0 - position) * morphTargetInfluences[0];
+          transformed += (morphTarget1 - position) * morphTargetInfluences[1];
+          transformed += (morphTarget2 - position) * morphTargetInfluences[2];
+          transformed += (morphTarget3 - position) * morphTargetInfluences[3];
+        `,
+      },
+      {
+        from: "#include <color_pars_vertex>",
+        to: `
+          varying vec3 vColor;
+          attribute vec3 morphColor0;
+          attribute vec3 morphColor1;
+          attribute vec3 morphColor2;
+          attribute vec3 morphColor3;
+        `,
+      },
+      {
+        from: "#include <color_vertex>",
+        to: `
+          vColor.xyz = morphColor0 * morphTargetInfluences[0] +
+                       morphColor1 * morphTargetInfluences[1] +
+                       morphColor2 * morphTargetInfluences[2] +
+                       morphColor3 * morphTargetInfluences[3];
+          vColor.xyz /= morphTargetInfluences[0]+morphTargetInfluences[1]+morphTargetInfluences[2]+morphTargetInfluences[4];
+        `,
+      },
+    ];
+    material.onBeforeCompile = (shader) => {
+      vertexShaderReplacements.forEach((rep) => {
+        shader.vertexShader = shader.vertexShader.replace(rep.from, rep.to);
+      });
+    };
+  }
+
+  const mesh = new THREE.Mesh(baseGeometry, material);
   scene.add(mesh);
   mesh.morphTargetInfluences![0] = 0.5;
   render();
@@ -400,12 +456,12 @@ async function main() {
   const folderLocal = gui.addFolder("Local Clipping");
   const params = {
     man: 1,
-    woman: 0,
-    "man>50%": 0,
-    "woman>50%": 0,
+    woman: 0.01,
+    "man>50%": 0.01,
+    "woman>50%": 0.01,
   };
   folderLocal
-    .add(params, "man", 0, 1)
+    .add(params, "man", 0.01, 1)
     .step(0.01)
     .onChange(function (value: number) {
       if (mesh.morphTargetInfluences) {
@@ -414,7 +470,7 @@ async function main() {
       render();
     });
   folderLocal
-    .add(params, "woman", 0, 1)
+    .add(params, "woman", 0.01, 1)
     .step(0.01)
     .onChange(function (value: number) {
       if (mesh.morphTargetInfluences) {
@@ -423,7 +479,7 @@ async function main() {
       render();
     });
   folderLocal
-    .add(params, "man>50%", 0, 1)
+    .add(params, "man>50%", 0.01, 1)
     .step(0.01)
     .onChange(function (value: number) {
       if (mesh.morphTargetInfluences) {
@@ -432,7 +488,7 @@ async function main() {
       render();
     });
   folderLocal
-    .add(params, "woman>50%", 0, 1)
+    .add(params, "woman>50%", 0.01, 1)
     .step(0.01)
     .onChange(function (value: number) {
       if (mesh.morphTargetInfluences) {
