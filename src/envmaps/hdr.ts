@@ -10,7 +10,6 @@ import image from "./hdr.png";
 function createPlane() {
   const geometry = new THREE.PlaneGeometry(200, 200);
   const material = new THREE.MeshPhongMaterial({
-    // wireframe: true,
     color: 0x555555,
   });
 
@@ -101,7 +100,7 @@ function main() {
   const pointLight = new THREE.PointLight(0xffffff, 1, 1000);
   pointLight.position.set(50, 50, 50);
   pointLight.castShadow = true;
-  // scene.add(pointLight);
+  scene.add(pointLight);
 
   const plane = createPlane();
   scene.add(plane);
@@ -117,8 +116,8 @@ function main() {
     const pngCubeRenderTarget = pmremGenerator.fromEquirectangular(texture);
     torusMesh.material.envMap = pngCubeRenderTarget.texture;
     torusMesh.material.needsUpdate = true;
-    // plane.material.map = pngCubeRenderTarget.texture;
-    // plane.material.needsUpdate = true;
+    plane.material.map = pngCubeRenderTarget.texture;
+    plane.material.needsUpdate = true;
 
     scene.background = pngCubeRenderTarget.texture;
     texture.dispose();
