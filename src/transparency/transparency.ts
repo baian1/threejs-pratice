@@ -2,6 +2,7 @@ import {
   BoxBufferGeometry,
   Color,
   DirectionalLight,
+  DoubleSide,
   Mesh,
   MeshPhongMaterial,
   PerspectiveCamera,
@@ -49,6 +50,8 @@ function makeInstance(color: Color, ...position: [number, number, number]) {
     color,
     opacity: 0.5,
     transparent: true,
+    //是否展示背面
+    side: DoubleSide,
   });
   const cube = new Mesh(geometry, material);
   scene.add(cube);
