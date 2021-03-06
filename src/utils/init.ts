@@ -1,5 +1,11 @@
 import Stats from "three/examples/jsm/libs/stats.module";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
+import {
+  DirectionalLight,
+  PerspectiveCamera,
+  Scene,
+  WebGLRenderer,
+} from "three";
 
 export function onWindowResize(
   renderer: THREE.Renderer,
@@ -46,4 +52,28 @@ export function createOrbitControls(
   const controls = new OrbitControls(camera, renderer.domElement);
   // controls.minDistance = 1;
   // controls.maxDistance = 20;
+}
+
+// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
+export function init() {
+  const canvas = getcanvas();
+  const renderer = new WebGLRenderer({ canvas, logarithmicDepthBuffer: true });
+  const camera = new PerspectiveCamera();
+  camera.position.set(0, 0, 100);
+  createOrbitControls(camera, renderer);
+
+  onWindowResize(renderer, camera);
+
+  const scene = new Scene();
+  const light1 = new DirectionalLight(0xffffff, 1);
+  light1.position.set(10, 10, 10);
+  scene.add(light1);
+  const light2 = new DirectionalLight(0xffffff, 1);
+  light2.position.set(-10, -10, -10);
+  scene.add(light2);
+  return {
+    renderer,
+    camera,
+    scene,
+  };
 }
