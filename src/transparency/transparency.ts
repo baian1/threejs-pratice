@@ -1,8 +1,9 @@
 import {
+  BackSide,
   BoxBufferGeometry,
   Color,
   DirectionalLight,
-  DoubleSide,
+  FrontSide,
   Mesh,
   MeshPhongMaterial,
   PerspectiveCamera,
@@ -45,19 +46,24 @@ addLight(-1, 2, 4);
 addLight(1, -1, -2);
 
 const geometry = new BoxBufferGeometry(1, 1, 1);
-function makeInstance(color: Color, ...position: [number, number, number]) {
-  const material = new MeshPhongMaterial({
-    color,
-    opacity: 0.5,
-    transparent: true,
-    //是否展示背面
-    side: DoubleSide,
-  });
-  const cube = new Mesh(geometry, material);
-  scene.add(cube);
 
-  cube.position.set(...position);
-  return cube;
+function makeInstance(color: Color, ...position: [number, number, number]) {
+  //分开绘制物体的两个面
+  //需要注意,cube两次绘制z相等,不会进行位置排序
+  //使用了id排序,所以先绘制背面,再绘制正面
+  [BackSide, FrontSide].forEach((side) => {
+    const material = new MeshPhongMaterial({
+      color,
+      opacity: 0.5,
+      transparent: true,
+      side,
+    });
+    const cube = new Mesh(geometry, material);
+    scene.add(cube);
+
+    cube.position.set(...position);
+    console.log(cube);
+  });
 }
 
 function hsl(h: number, s: number, l: number) {
